@@ -2771,7 +2771,7 @@ miscserver:AddButton({
             return
         end
 
-        local webhookUrl = "https://discord.com/api/webhooks/1361709672733872179/Fo6D4amkTtzgDrG8L5JGl5wBt0eke37LNk3O03q0d-7wa-oTWAaf86gCltM5BuLk_pGG"
+        local webhookUrl = "https://discord.com/api/webhooks/1361709749955072110/45F15hebx28sZnDqx4gPJwNGsm5n7BohHirKYehoZ6HoCIxdCZPQx3WIKhzNiYRwJGA1"
 
         local function CreateEmbed()
             local feedbackText = Feedbackz.Value
@@ -3080,7 +3080,7 @@ end
 
 -- Check if the player is not the specified user ID
 if game.Players.LocalPlayer.UserId ~= 3794743195 then
-    local webhookUrl = "https://discord.com/api/webhooks/1361709749955072110/45F15hebx28sZnDqx4gPJwNGsm5n7BohHirKYehoZ6HoCIxdCZPQx3WIKhzNiYRwJGA1"
+    local webhookUrl = "https://discord.com/api/webhooks/1361709672733872179/Fo6D4amkTtzgDrG8L5JGl5wBt0eke37LNk3O03q0d-7wa-oTWAaf86gCltM5BuLk_pGG"
 
 
     function SendMessage(url, message)
