@@ -1,4 +1,4 @@
---loadstring(game:HttpGet("https://raw.githubusercontent.com/wrdzy/lootify/refs/heads/main/Lootify.lua"))()
+--loadstring(game:HttpGet("https://pastes.io/raw/lootifyscript"))()
 
 
 local BlacklistedPlayers = {
@@ -29,7 +29,7 @@ if _G.Interface == nil then
     -- ====== PERSISTENCE MECHANISM ======
     local CONFIGURATION = {
         FOLDER_NAME = "CROW",
-        SCRIPT_URL = "https://raw.githubusercontent.com/wrdzy/lootify/refs/heads/main/Lootify.lua",
+        SCRIPT_URL = "https://pastes.io/raw/lootifyscript",
         FILE_EXTENSION = ".lua"
     }
 
