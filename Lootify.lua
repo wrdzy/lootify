@@ -369,7 +369,7 @@ end
 
 
 
-    local autosell = secauto:AddToggle("autosell", {Title = "Auto Sell All", Default = false})
+    local autosell = secauto:AddToggle("autosell", {Title = "Auto Sell All", Description = "WARNING: this will delete youre locked items.", Default = false})
 
     autosell:OnChanged(function()
         if autosell.Value then
