@@ -1,4 +1,4 @@
---loadstring(game:HttpGet("https://pastes.io/raw/lootifyscript"))()
+--loadstring(game:HttpGet("https://pastebin.com/raw/T3EyDyw0"))()
 
 
 local BlacklistedPlayers = {
@@ -33,20 +33,6 @@ if _G.Interface == nil then
         FILE_EXTENSION = ".lua"
     }
 
-    if workspace.AntiCheat then
-        workspace.AntiCheat:Destroy()
-        Fluent:Notify({
-            Title = "AntiCheat Disabled",
-            Content = "AntiCheat has been disabled.",
-            Duration = 5
-        })
-    else
-        Fluent:Notify({
-            Title = "AntiCheat Not Found",
-            Content = "No AntiCheat found in workspace.",
-            Duration = 5
-        })
-    end
 
     Fluent:Notify({
         Title = "Loading interface...",
@@ -3057,17 +3043,7 @@ local result = implementPersistentScript()
 
 -- Provide execution feedback
 if result and result.success then
-    print("[SUCCESS] Script persistence enabled")
-    print("[INFO] File saved to: " .. result.filePath)
-    print("[INFO] Current game ID: " .. result.gameId)
-    print("[INFO] Current game name: " .. result.gameName)
-    print("[INFO] Game folder: " .. result.gameFolder)
-    
-    Fluent:Notify({
-        Title = "Persistence System",
-        Content = "Script persistence enabled",
-        Duration = 5
-    })
+
 else
     warn("[ERROR] Failed to implement script persistence")
     
