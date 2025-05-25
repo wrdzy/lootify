@@ -47,7 +47,7 @@ if _G.Interface == nil then
 
     local Window = Fluent:CreateWindow({
         Title = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name .. " | " .. Version,
-        SubTitle = "(auto updt vers.) by wrdyz.94",
+        SubTitle = "(auto updt vers.) by .scyllabyte",
         TabWidth = 100,
         Size = UDim2.fromOffset(550, 400),
         Acrylic = false,
@@ -79,72 +79,138 @@ if _G.Interface == nil then
     })
 
     local secplayer = Tabs.Player:AddSection("Player")
-    local player = game.Players.LocalPlayer
-    local character = player.Character or player.CharacterAdded:Wait()
-    local humanoid = character:WaitForChild("Humanoid")
-    local basespeed = humanoid.WalkSpeed
-    local basejump = humanoid.JumpPower
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local basespeed = 16
+local basejump = humanoid.JumpPower
 
-    local SliderWalk = secplayer:AddSlider("SliderWalk", {
-        Title = "Walk Speed",
-        Description = "",
-        Default = basespeed,
-        Min = basespeed,
-        Max = basespeed * 8,
-        Rounding = 0,
-        Callback = function(Value)
-            humanoid.WalkSpeed = Value
-        end
-    })
+-- Movement variables
+local speedMultiplier = 1
+local moveConnection = nil
 
-    local SliderJump = secplayer:AddSlider("SliderJump", {
-        Title = "Jump Power",
-        Description = "",
-        Default = basejump,
-        Min = basejump,
-        Max = basejump * 2,
-        Rounding = 0,
-        Callback = function(Value)
-            humanoid.UseJumpPower = true
-            humanoid.JumpPower = Value
-        end
-    })
+-- Services
+local RunService = game:GetService("RunService")
 
-    humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-        if humanoid.WalkSpeed ~= SliderWalk.Value then
-            humanoid.WalkSpeed = SliderWalk.Value
-        end
-    end)
+-- Function to apply CFrame movement
+local function applyMovement()
+    if not rootPart or not humanoid then return end
+    
+    if humanoid.MoveDirection.Magnitude > 0 then
+        -- Simple movement in the direction the character is moving
+        local moveDirection = humanoid.MoveDirection
+        local speed = basespeed * speedMultiplier / 60
+        
+        -- Move the character
+        rootPart.CFrame = rootPart.CFrame + (moveDirection * speed)
+    end
+end
 
-    humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()
-        if humanoid.JumpPower ~= SliderJump.Value then
-            humanoid.JumpPower = SliderJump.Value
-        end
-    end)
+-- Disable default WalkSpeed
+humanoid.WalkSpeed = 0
 
-    player.CharacterAdded:Connect(function(character)
-        humanoid = character:WaitForChild("Humanoid")
-        humanoid.WalkSpeed = SliderWalk.Value
-        humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-            if humanoid.WalkSpeed ~= SliderWalk.Value then
-                humanoid.WalkSpeed = SliderWalk.Value
-            end
-        end)
+-- Start movement loop
+moveConnection = RunService.Heartbeat:Connect(applyMovement)
+
+-- Sliders
+local SliderSpeed = secplayer:AddSlider("SliderSpeed", {
+    Title = "Movement Speed",
+    Description = "",
+    Default = basespeed,
+    Min = basespeed,
+    Max = basespeed * 8,
+    Rounding = 0,
+    Callback = function(Value)
+        speedMultiplier = Value / basespeed
+    end
+})
+
+local SliderJump = secplayer:AddSlider("SliderJump", {
+    Title = "Jump Power",
+    Description = "",
+    Default = basejump,
+    Min = basejump,
+    Max = basejump * 2,
+    Rounding = 0,
+    Callback = function(Value)
         humanoid.UseJumpPower = true
-        humanoid.JumpPower = SliderJump.Value
-    end)
+        humanoid.JumpPower = Value
+    end
+})
+
+-- Handle character respawn
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    
+    -- Disable default WalkSpeed
+    humanoid.WalkSpeed = 0
+    
+    -- Reconnect movement
+    if moveConnection then
+        moveConnection:Disconnect()
+    end
+    moveConnection = RunService.Heartbeat:Connect(applyMovement)
+    
+    -- Restore settings
+    humanoid.UseJumpPower = true
+    humanoid.JumpPower = SliderJump.Value
+end)
 
 
-    secplayer:AddButton({
-        Title = "Add buffs",
-        Callback = function()
-            local remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Guide"):WaitForChild("ChooseStarterBonus")
-            remotes:FireServer(161011)
-            remotes:FireServer(161012)
-            remotes:FireServer(161013)
-            game:GetService("ReplicatedStorage").Remotes.WorldEvent.GhostShipBuff:FireServer()
+local BuffDrop = secplayer:AddDropdown("BuffDrop", {
+    Title = "Buff Selection",
+    Values = {"Luck", "EXP", "Coin", "Ghost Ship"},
+    Multi = true,
+    Default = {},
+})
+
+secplayer:AddButton({
+    Title = "Add buff",
+    Callback = function()
+        local remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Guide"):WaitForChild("ChooseStarterBonus")
+        local ghostRemote = game:GetService("ReplicatedStorage").Remotes.WorldEvent.GhostShipBuff
+        
+        -- Get only the selected buffs (where State is true)
+        for buffName, isSelected in pairs(BuffDrop.Value) do
+            if isSelected then  -- Only process if the buff is selected
+                if buffName == "Luck" then
+                    remotes:FireServer(161011)
+                elseif buffName == "EXP" then
+                    remotes:FireServer(161012)
+                elseif buffName == "Coin" then
+                    remotes:FireServer(161013)
+                elseif buffName == "Ghost Ship" then
+                    ghostRemote:FireServer()
+                end
+            end
         end
-    })
+    end
+})
+
+-- secplayer:AddButton({
+--     Title = "Add buff",
+--     Callback = function()
+--         local remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Guide"):WaitForChild("ChooseStarterBonus")
+--         local ghostRemote = game:GetService("ReplicatedStorage").Remotes.WorldEvent.GhostShipBuff
+        
+--         -- Loop through all selected values
+--         for _, buff in pairs(BuffDrop.Value) do
+--             if buff == "Luck" then
+--                 remotes:FireServer(161011)
+--             elseif buff == "EXP" then
+--                 remotes:FireServer(161012)
+--             elseif buff == "Coin" then
+--                 remotes:FireServer(161013)
+--             elseif buff == "Ghost Ship" then
+--                 ghostRemote:FireServer()
+--             end
+--             print("Buff added: " .. buff)
+--         end
+--     end
+-- })
 
     local autoclikck = secplayer:AddToggle("autoclikck", {Title = "Autoclick", Default = false })
     autoclikck:OnChanged(function()
@@ -835,616 +901,923 @@ end
         Rounding = 1,
     })
     
-    local combinedAutofarm = secauto1:AddToggle("combinedAutofarm", {
-        Title = "Smart Dungeon Autofarm",
-        Default = false
-    })
+--     local combinedAutofarm = secauto1:AddToggle("combinedAutofarm", {
+--         Title = "Smart Dungeon Autofarm",
+--         Default = false
+--     })
     
-    -- Section 2: State Management Variables
-    local autofarmEnabled = false
-    local heartbeatConnection = nil
-    local targetEnemy = nil
-    local cooldownTime = 0.15
-    local lastLevelCheckTime = 0
-    local levelCheckInterval = 30 -- Check for level-appropriate NPCs every 30 seconds
+--     -- Section 2: State Management Variables
+--     local autofarmEnabled = false
+--     local heartbeatConnection = nil
+--     local targetEnemy = nil
+--     local cooldownTime = 0.15
+--     local lastLevelCheckTime = 0
+--     local levelCheckInterval = 30 -- Check for level-appropriate NPCs every 30 seconds
     
-    -- Section 3: Data Structures - Island power thresholds and locations
-    -- Section 3: Data Structures - Island power thresholds and locations
-local ISLANDS = {
+--     -- Section 3: Data Structures - Island power thresholds and locations
+--     -- Section 3: Data Structures - Island power thresholds and locations
+-- local ISLANDS = {
+--     {
+--         name = "Island 1",
+--         minPower = 0,          -- Minimum power requirement for Island 1
+--         maxPower = 75_000,       -- Maximum effective power for Island 1
+--         location = CFrame.new(-1.00680757, 102.04232, -288.245911),
+--         npcBaseId = 101002,
+--         npcCount = 5
+--     },
+--     {
+--         name = "Island 2",
+--         minPower = 116_000,      -- Minimum power requirement for Island 2
+--         maxPower = 6_000_000,    -- Maximum effective power for Island 2
+--         location = CFrame.new(-834.775085, 54.813942, 1361.6803),
+--         npcBaseId = 101007,
+--         npcCount = 5
+--     },
+--     {
+--         name = "Island 3",
+--         minPower = 6_000_000,    -- Minimum power requirement for Island 3
+--         maxPower = 45_000_000,   -- Maximum effective power for Island 3
+--         location = CFrame.new(1828.25293, -119.801704, 2863.44824),
+--         npcBaseId = 101012,
+--         npcCount = 5
+--     },
+--     {
+--         name = "Island 4 (Part 1)",
+--         minPower = 65_000_000,   -- Minimum power requirement for Island 4 Part 1
+--         maxPower = 225_000_000,  -- Maximum effective power for Island 4 Part 1
+--         location = CFrame.new(3779.57349, 51.8931541, 1179.47632),
+--         npcBaseId = 101017,
+--         npcCount = 5
+--     },
+--     {
+--         name = "Island 4 (Part 2)",
+--         minPower = 345_000_000,  -- Minimum power requirement for Island 4 Part 2
+--         maxPower = math.huge,    -- No upper limit
+--         location = CFrame.new(3943.59766, 59.3501854, 1114.27197),
+--         npcBaseId = 101022,
+--         npcCount = 5
+--     }
+-- }
+
+
+    
+--     -- Section 4: Utility Functions
+--     -- Function to parse the power text like "193k" into a number
+--     local function parsePower(powerText)
+--         if not powerText or type(powerText) ~= "string" then
+--             warn("Power text is nil or invalid: ", tostring(powerText))
+--             return 0
+--         end
+    
+--         local num, suffix = powerText:match("([%d%.]+)([kKmMbB]?)")
+--         if not num then
+--             num, suffix = powerText:match("Power%s*([%d%.]+)([kKmMbB]?)")
+--         end
+        
+--         num = tonumber(num)
+--         if not num then 
+--             warn("Could not convert to number: " .. powerText)
+--             return 0 
+--         end
+    
+--         if suffix == "k" or suffix == "K" then
+--             return num * 1_000
+--         elseif suffix == "m" or suffix == "M" then
+--             return num * 1_000_000
+--         elseif suffix == "b" or suffix == "B" then
+--             return num * 1_000_000_000
+--         end
+--         return num
+--     end
+    
+--     -- Function to safely get a UI element with proper error handling
+--     local function safeGetUIElement(parent, path)
+--         if not parent then return nil end
+        
+--         local current = parent
+--         for _, name in ipairs(path) do
+--             if not current then return nil end
+--             current = current:FindFirstChild(name)
+--         end
+        
+--         return current
+--     end
+    
+--     -- Function to get the player's power using the exact path specified
+--     local function getPlayerPower()
+--         local player = Players.LocalPlayer
+--         local powerLabel = safeGetUIElement(player, {"PlayerGui", "Main", "HomePage", "Property", "PowerFrame", "Power", "Power"})
+        
+--         if not powerLabel or not powerLabel:IsA("TextLabel") then
+--             warn("Power label not found or not a TextLabel")
+--             return 0
+--         end
+        
+--         return parsePower(powerLabel.Text)
+--     end
+    
+--     local function getIslandForPower(playerPower)
+--         -- Find the highest island where player meets the minimum power requirement
+--         for i, island in ipairs(ISLANDS) do
+--             if playerPower >= island.minPower then
+--                 if i < #ISLANDS and playerPower >= ISLANDS[i+1].minPower then
+--                     -- Continue to next island if player meets next island's requirement
+--                     continue
+--                 end
+--                 return island, i
+--             end
+--         end
+        
+--         -- If player doesn't meet any island's requirements, return the first island
+--         return ISLANDS[1], 1
+--     end
+    
+--     -- Section 6: Combat and Targeting Functions
+--     -- Function to safely acquire the tool (even if it changes)
+--     local function getWeapon(character)
+--         local tool = character:FindFirstChild("Weapon")
+--         if not tool then
+--             -- Wait for a child to be added; this may be a new tool
+--             tool = character.ChildAdded:Wait()
+--             -- Optionally check if the new child is the correct tool
+--         end
+--         return tool
+--     end
+    
+--     -- Function to find the nearest enemy in EnemyFolder
+--     local function findNearestEnemy(humanoidRootPart)
+--         local closest, dist = nil, math.huge
+--         local enemyFolder = Workspace:FindFirstChild("EnemyFolder")
+--         if enemyFolder then
+--             for _, enemy in pairs(enemyFolder:GetChildren()) do
+--                 local enemyHumanoid = enemy:FindFirstChildOfClass("Humanoid")
+--                 local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
+--                 if enemyHumanoid and enemyRoot and enemyHumanoid.Health > 0 then
+--                     local mag = (humanoidRootPart.Position - enemyRoot.Position).Magnitude
+--                     if mag < dist then
+--                         closest, dist = enemy, mag
+--                     end
+--                 end
+--             end
+--         end
+--         return closest
+--     end
+    
+--     -- Section 7: NPC Selection and Dungeon Initialization
+--     -- Function to find the best NPC and fire the event
+--     local function findBestNpcAndFireEvent()
+--         -- Don't execute if we're already in a dungeon
+--         if DungeonSystem.inDungeon then
+--             DungeonSystem:Log("⚔️ Already in dungeon - skipping NPC selection", "ACTION")
+--             return false
+--         end
+    
+--         local player = Players.LocalPlayer
+--         -- Verify character exists
+--         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+--             warn("Character or HumanoidRootPart not found. Waiting...")
+--             player.CharacterAdded:Wait()
+--             wait(1) -- Give time for character to fully load
+--             return false
+--         end
+        
+--         local playerPower = getPlayerPower()
+--         if playerPower <= 0 then
+--             warn("Invalid player power detected. Please make sure your UI has loaded properly.")
+--             return false
+--         end
+        
+--         DungeonSystem:Log("📊 Your current power: " .. tostring(playerPower), "POWER")
+        
+--         -- Determine the appropriate island for the player's power
+--         local island, islandIndex = getIslandForPower(playerPower)
+--         DungeonSystem:Log(string.format("🌴 Selected %s for power level: %s", island.name, tostring(playerPower)), "ISLAND")
+        
+--         -- Teleport to the island
+--         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+--             player.Character:SetPrimaryPartCFrame(island.location)
+--             DungeonSystem:Log("✈️ Teleported to " .. island.name, "MOVEMENT")
+--         else
+--             warn("Cannot teleport: Character or HumanoidRootPart not available")
+--             return false
+--         end
+        
+--         -- Wait for NPCs to load after teleport
+--         wait(1.5)
+        
+--         -- Scan and analyze NPCs on this island
+--         local visibleNpcs = {}
+--         local npcsFolder = Workspace:WaitForChild("NPCs")
+        
+--         -- Loop through all NPCs in the workspace
+--         for _, npc in pairs(npcsFolder:GetChildren()) do
+--             if npc:IsA("Model") then
+--                 -- Try to find the power level text
+--                 local levelNeed = npc:FindFirstChild("LevelNeed", true)
+--                 if not levelNeed and npc:FindFirstChild("Talk") then
+--                     local talkPart = npc:FindFirstChild("Talk")
+--                     local gui = talkPart and talkPart:FindFirstChild("BillboardGui")
+--                     if gui then
+--                         local frame = gui:FindFirstChild("Frame")
+--                         if frame then
+--                             levelNeed = frame:FindFirstChild("LevelNeed")
+--                         end
+--                     end
+--                 end
+                
+--                 -- If we found a valid power indicator
+--                 if levelNeed and (levelNeed:IsA("TextLabel") or levelNeed:IsA("TextButton")) and levelNeed.Text then
+--                     local power = parsePower(levelNeed.Text)
+--                     if power > 0 then
+--                         table.insert(visibleNpcs, {
+--                             model = npc,
+--                             name = npc.Name,
+--                             power = power
+--                         })
+--                     end
+--                 end
+--             end
+--         end
+        
+--         -- Sort NPCs by power (ascending)
+--         table.sort(visibleNpcs, function(a, b)
+--             return a.power < b.power
+--         end)
+        
+--         if #visibleNpcs == 0 then
+--             DungeonSystem:Log("⚠️ No NPCs found in the current area. Please wait or try again.", "WARNING")
+--             return false
+--         end
+        
+--         -- Map NPC IDs based on power ranking
+--         local mappedNpcs = {}
+--         local npcBaseId = island.npcBaseId
+        
+--         -- If we found fewer NPCs than expected
+--         local npcCount = math.min(#visibleNpcs, island.npcCount)
+        
+--         -- Create mapping from lowest to highest power
+--         for i = 1, npcCount do
+--             local npcInfo = visibleNpcs[i]
+--             local npcId = npcBaseId + (i-1)  -- Calculate ID based on position (101002, 101003, etc.)
+            
+--             table.insert(mappedNpcs, {
+--                 model = npcInfo.model,
+--                 name = npcInfo.name,
+--                 power = npcInfo.power,
+--                 id = npcId
+--             })
+            
+--             DungeonSystem:Log(string.format("📊 Mapped NPC: %s (Power: %s, ID: %d)", 
+--                 npcInfo.name, tostring(npcInfo.power), npcId), "NPC")
+--         end
+        
+--         -- Find the strongest NPC the player can defeat based on power
+--         local bestNpc = nil
+--         for i = #mappedNpcs, 1, -1 do
+--             if mappedNpcs[i].power <= playerPower then
+--                 bestNpc = mappedNpcs[i]
+--                 break
+--             end
+--         end
+        
+--         if bestNpc then
+--             DungeonSystem:Log(string.format("✅ Selected NPC: %s (Power: %s, ID: %d)", 
+--                 bestNpc.name, tostring(bestNpc.power), bestNpc.id), "NPC")
+            
+--             -- Teleport to the NPC's HumanoidRootPart immediately after
+--             local npcHumanoidRootPart = bestNpc.model:FindFirstChild("HumanoidRootPart")
+--             if npcHumanoidRootPart then
+--                 player.Character:SetPrimaryPartCFrame(npcHumanoidRootPart.CFrame)
+--                 DungeonSystem:Log("✈️ Teleported to NPC: " .. bestNpc.name, "MOVEMENT")
+--             else
+--                 warn("HumanoidRootPart not found for NPC: " .. bestNpc.name)
+--                 return false
+--             end
+            
+--             -- Wait before firing the event
+--             wait(1)  -- Adjust this time as needed
+            
+--             -- Fire the event once with the best NPC ID
+--             local remoteEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Region"):WaitForChild("EnterRegion")
+--             local args = {
+--                 [1] = bestNpc.id
+--             }
+--             remoteEvent:FireServer(unpack(args))
+--             DungeonSystem:Log(string.format("🔥 Fired remote event with NPC ID: %d", bestNpc.id), "REMOTE")
+--             return true
+--         else
+--             DungeonSystem:Log("⛔ No suitable NPC found for your power level (" .. tostring(playerPower) .. ").", "WARNING")
+--             if #mappedNpcs > 0 then
+--                 DungeonSystem:Log("The lowest power NPC available requires: " .. tostring(mappedNpcs[1].power) .. " power.", "INFO")
+--             end
+--             return false
+--         end
+--     end
+    
+--     -- Section 8: Character and Autofarm Management
+--     -- Function to initialize and start the autofarm logic for a given character
+--     local function startAutofarmForCharacter(character)
+--         local HumanoidRootPart = character:WaitForChild("HumanoidRootPart")
+--         local weapon = getWeapon(character)
+--         local attackCooldown = false
+    
+--         -- Disconnect any previous heartbeat connection before starting a new one
+--         if heartbeatConnection then
+--             heartbeatConnection:Disconnect()
+--             heartbeatConnection = nil
+--         end
+    
+--         -- Initialize the DungeonSystem
+--         DungeonSystem:Initialize()
+    
+--         heartbeatConnection = RunService.Heartbeat:Connect(function()
+--             if not autofarmEnabled then
+--                 return
+--             end
+    
+--             -- Let the DungeonSystem handle state detection
+--             local stateChanged, stateType = DungeonSystem:Update()
+            
+--             -- Process state changes
+--             if stateChanged then
+--                 if stateType == "DungeonStart" then
+--                     -- Reset targeting
+--                     targetEnemy = nil
+--                     -- Prevent redundant NPC selection during dungeon
+--                     lastLevelCheckTime = tick() + levelCheckInterval
+                    
+--                 elseif stateType == "DungeonComplete" or stateType == "DungeonExit" then
+--                     -- Handle completion
+--                     DungeonSystem:ResetState()
+--                     targetEnemy = nil
+                    
+--                     -- Trigger new NPC finding after a cooldown
+--                     task.delay(5, function()
+--                         if autofarmEnabled then
+--                             lastLevelCheckTime = 0  -- Force immediate NPC check
+--                         end
+--                     end)
+                    
+--                 elseif stateType == "StageTransition" then
+--                     -- Optional: You can implement specific behavior for stage transitions
+--                     -- For example, re-target enemies or prepare for boss
+--                     if DungeonSystem:IsInBossArea() then
+--                         DungeonSystem:Log("🎯 Boss detected - adjusting combat strategy", "COMBAT")
+--                         -- Reset targeting to find the boss
+--                         targetEnemy = nil
+--                     end
+--                 end
+--             end
+    
+--             -- NPC finding logic - only if not in dungeon
+--             local currentTime = tick()
+--             if currentTime - lastLevelCheckTime >= levelCheckInterval and not DungeonSystem.inDungeon then
+--                 lastLevelCheckTime = currentTime
+                
+--                 task.spawn(function()
+--                     findBestNpcAndFireEvent()
+--                 end)
+--             end
+    
+--             -- Reacquire the tool if it is missing or not parented to the character anymore
+--             if not weapon or not weapon:IsDescendantOf(character) then
+--                 weapon = getWeapon(character)
+--             end
+    
+--             -- Find the nearest valid enemy if none exists or the current one is dead
+--             if not targetEnemy or not targetEnemy:FindFirstChild("Humanoid") or targetEnemy.Humanoid.Health <= 0 then
+--                 targetEnemy = findNearestEnemy(HumanoidRootPart)
+--             end
+    
+--             if targetEnemy then
+--                 local enemyRoot = targetEnemy:FindFirstChild("HumanoidRootPart")
+--                 if enemyRoot then
+--                     local followDistance = slidauto.Value
+--                     -- Calculate a position behind the enemy based on its LookVector and desired distance
+--                     local behindPosition = enemyRoot.Position - enemyRoot.CFrame.LookVector * followDistance
+--                     local finalPos = Vector3.new(behindPosition.X, enemyRoot.Position.Y, behindPosition.Z)
+                    
+--                     -- Teleport the character's HumanoidRootPart behind the enemy and face it
+--                     HumanoidRootPart.CFrame = CFrame.new(finalPos, enemyRoot.Position)
+                    
+--                     -- If not in cooldown, activate the weapon
+--                     if not attackCooldown then
+--                         if weapon and weapon.Activate then
+--                             weapon:Activate()
+--                         end
+--                         attackCooldown = true
+--                         task.delay(cooldownTime, function()
+--                             attackCooldown = false
+--                         end)
+--                     end
+--                 end
+--             end
+--         end)
+    
+--         -- Listen for character death so that the connection is cleaned up
+--         local humanoid = character:WaitForChild("Humanoid")
+--         humanoid.Died:Connect(function()
+--             if heartbeatConnection then
+--                 heartbeatConnection:Disconnect()
+--                 heartbeatConnection = nil
+--             end
+--             targetEnemy = nil
+--         end)
+--     end
+    
+--     -- Section 9: Event Handlers and Initialization
+--     -- Handle toggle state changes for autofarming
+--     combinedAutofarm:OnChanged(function(enabled)
+--         autofarmEnabled = enabled
+        
+--         if not autofarmEnabled then
+--             if heartbeatConnection then
+--                 heartbeatConnection:Disconnect()
+--                 heartbeatConnection = nil
+--             end
+--             -- Reset all state
+--             DungeonSystem:Initialize()
+--             targetEnemy = nil
+--             return
+--         end
+        
+--         -- Initialize state variables for immediate execution
+--         lastLevelCheckTime = 0
+        
+--         -- If enabled, initialize for the current character
+--         local character = Players.LocalPlayer.Character
+--         if character then
+--             startAutofarmForCharacter(character)
+--         end
+--     end)
+    
+--     -- Listen for the LocalPlayer's character to be loaded/reloaded (e.g. after death)
+--     Players.LocalPlayer.CharacterAdded:Connect(function(character)
+--         if autofarmEnabled then
+--             startAutofarmForCharacter(character)
+--         end
+--     end)
+
+
+
+
+
+
+
+
+
+
+
+
+-- Use an array with numerical indices to maintain order
+local Dungeons = {
     {
-        name = "Island 1",
-        minPower = 0,          -- Minimum power requirement for Island 1
-        maxPower = 75_000,       -- Maximum effective power for Island 1
-        location = CFrame.new(-1.00680757, 102.04232, -288.245911),
+        name = "Ancient Gladiator",
+        difficulty = "Starter",
         npcBaseId = 101002,
-        npcCount = 5
+        island = 1,
+        isBoss = false
     },
     {
-        name = "Island 2",
-        minPower = 116_000,      -- Minimum power requirement for Island 2
-        maxPower = 6_000_000,    -- Maximum effective power for Island 2
-        location = CFrame.new(-834.775085, 54.813942, 1361.6803),
+        name = "Holy Sect Exile",
+        difficulty = "Medium",
+        npcBaseId = 101003,
+        island = 1,
+        isBoss = false
+    },
+    {
+        name = "Sacrificial Piece",
+        difficulty = "Hard",
+        npcBaseId = 101004,
+        island = 1,
+        isBoss = false
+    },
+    {
+        name = "Mechanical Minion",
+        difficulty = "Extreme",
+        npcBaseId = 101005,
+        island = 1,
+        isBoss = false
+    },
+    {
+        name = "Blade",
+        difficulty = "",
+        npcBaseId = 101006,
+        island = 1,
+        isBoss = true
+    },
+    {
+        name = "Jungle Hunter",
+        difficulty = "Starter",
         npcBaseId = 101007,
-        npcCount = 5
+        island = 2,
+        isBoss = false
     },
     {
-        name = "Island 3",
-        minPower = 6_000_000,    -- Minimum power requirement for Island 3
-        maxPower = 45_000_000,   -- Maximum effective power for Island 3
-        location = CFrame.new(1828.25293, -119.801704, 2863.44824),
+        name = "Dual Edge Specter",
+        difficulty = "Medium",
+        npcBaseId = 101008,
+        island = 2,
+        isBoss = false
+    },
+    {
+        name = "Rock Golem Sentinel",
+        difficulty = "Hard",
+        npcBaseId = 101009,
+        island = 2,
+        isBoss = false
+    },
+    {
+        name = "Marooned Cavalier",
+        difficulty = "Extreme",
+        npcBaseId = 101010,
+        island = 2,
+        isBoss = false
+    },
+    {
+        name = "Woodland Sovereign",
+        difficulty = "",
+        npcBaseId = 101011,
+        island = 2,
+        isBoss = true
+    },
+    {
+        name = "Deep Sea Undead",
+        difficulty = "Starter",
         npcBaseId = 101012,
-        npcCount = 5
+        island = 3,
+        isBoss = false
     },
     {
-        name = "Island 4 (Part 1)",
-        minPower = 65_000_000,   -- Minimum power requirement for Island 4 Part 1
-        maxPower = 225_000_000,  -- Maximum effective power for Island 4 Part 1
-        location = CFrame.new(3779.57349, 51.8931541, 1179.47632),
+        name = "Guardian Priest",
+        difficulty = "Medium",
+        npcBaseId = 101013,
+        island = 3,
+        isBoss = false
+    },
+    {
+        name = "Advanced Mecha MKII",
+        difficulty = "Hard",
+        npcBaseId = 101014,
+        island = 3,
+        isBoss = false
+    },
+    {
+        name = "Abyssal High Priest",
+        difficulty = "Extreme",
+        npcBaseId = 101015,
+        island = 3,
+        isBoss = false
+    },
+    {
+        name = "Prototype Zero",
+        difficulty = "",
+        npcBaseId = 101016,
+        island = 3,
+        isBoss = true
+    },
+    {
+        name = "Infector",
+        difficulty = "Starter",
         npcBaseId = 101017,
-        npcCount = 5
+        island = 4,
+        isBoss = false
     },
     {
-        name = "Island 4 (Part 2)",
-        minPower = 345_000_000,  -- Minimum power requirement for Island 4 Part 2
-        maxPower = math.huge,    -- No upper limit
-        location = CFrame.new(3943.59766, 59.3501854, 1114.27197),
+        name = "Chaotic pathogen",
+        difficulty = "Medium",
+        npcBaseId = 101018,
+        island = 4,
+        isBoss = false
+    },
+    {
+        name = "Cornelius",
+        difficulty = "Hard",
+        npcBaseId = 101019,
+        island = 4,
+        isBoss = false
+    },
+    {
+        name = "Calamity",
+        difficulty = "Extreme",
+        npcBaseId = 101020,
+        island = 4,
+        isBoss = false
+    },
+    {
+        name = "The Flame King",
+        difficulty = "",
+        npcBaseId = 101021,
+        island = 4,
+        isBoss = true
+    },
+    {
+        name = "Templis Vigil",
+        difficulty = "Starter",
         npcBaseId = 101022,
-        npcCount = 5
-    }
+        island = 5,
+        isBoss = false
+    },
+    {
+        name = "Seraphic Ward",
+        difficulty = "Medium",
+        npcBaseId = 101023,
+        island = 5,
+        isBoss = false
+    },
+    {
+        name = "Star Confessor",
+        difficulty = "Hard",
+        npcBaseId = 101024,
+        island = 5,
+        isBoss = false
+    },
+    {
+        name = "Zenith Templar",
+        difficulty = "Extreme",
+        npcBaseId = 101025,
+        island = 5,
+        isBoss = false
+    },
+    {
+        name = "Odyus Storm",
+        difficulty = "",
+        npcBaseId = 101026,
+        island = 5, -- Fixed: was island 4, should be 5 based on position
+        isBoss = true
+    },
 }
 
+-- Create dropdown values in order with island and boss info
+local dropdownValues = {}
+for i, dungeon in ipairs(Dungeons) do
+    local displayName = dungeon.name .. ", Island " .. dungeon.island .. ", Difficulty: " .. dungeon.difficulty
+    if dungeon.isBoss then
+        displayName = displayName .. " (Boss)"
+    end
+    table.insert(dropdownValues, displayName)
+end
 
-    
-    -- Section 4: Utility Functions
-    -- Function to parse the power text like "193k" into a number
-    local function parsePower(powerText)
-        if not powerText or type(powerText) ~= "string" then
-            warn("Power text is nil or invalid: ", tostring(powerText))
-            return 0
+local Farmdrop = secauto1:AddDropdown("Farmdrop", {
+    Title = "Select Dungeon",
+    Values = dropdownValues,
+    Multi = false,
+    Default = nil,
+})
+
+local startdungeon = secauto1:AddToggle("startdungeon", {Title = "Start Dungeon", Description = "Cooldown: 10s", Default = false })
+
+-- Variable to store the selected dungeon index
+local selectedDungeonIndex = nil
+
+-- Handle dropdown selection
+Farmdrop:OnChanged(function(value)
+    -- Find the index of the selected dungeon
+    for i, displayName in ipairs(dropdownValues) do
+        if displayName == value then
+            selectedDungeonIndex = i
+            break
         end
-    
-        local num, suffix = powerText:match("([%d%.]+)([kKmMbB]?)")
-        if not num then
-            num, suffix = powerText:match("Power%s*([%d%.]+)([kKmMbB]?)")
-        end
-        
-        num = tonumber(num)
-        if not num then 
-            warn("Could not convert to number: " .. powerText)
-            return 0 
-        end
-    
-        if suffix == "k" or suffix == "K" then
-            return num * 1_000
-        elseif suffix == "m" or suffix == "M" then
-            return num * 1_000_000
-        elseif suffix == "b" or suffix == "B" then
-            return num * 1_000_000_000
-        end
-        return num
     end
-    
-    -- Function to safely get a UI element with proper error handling
-    local function safeGetUIElement(parent, path)
-        if not parent then return nil end
-        
-        local current = parent
-        for _, name in ipairs(path) do
-            if not current then return nil end
-            current = current:FindFirstChild(name)
-        end
-        
-        return current
-    end
-    
-    -- Function to get the player's power using the exact path specified
-    local function getPlayerPower()
-        local player = Players.LocalPlayer
-        local powerLabel = safeGetUIElement(player, {"PlayerGui", "Main", "HomePage", "Property", "PowerFrame", "Power", "Power"})
-        
-        if not powerLabel or not powerLabel:IsA("TextLabel") then
-            warn("Power label not found or not a TextLabel")
-            return 0
-        end
-        
-        return parsePower(powerLabel.Text)
-    end
-    
-    local function getIslandForPower(playerPower)
-        -- Find the highest island where player meets the minimum power requirement
-        for i, island in ipairs(ISLANDS) do
-            if playerPower >= island.minPower then
-                if i < #ISLANDS and playerPower >= ISLANDS[i+1].minPower then
-                    -- Continue to next island if player meets next island's requirement
-                    continue
-                end
-                return island, i
-            end
-        end
-        
-        -- If player doesn't meet any island's requirements, return the first island
-        return ISLANDS[1], 1
-    end
-    
-    -- Section 6: Combat and Targeting Functions
-    -- Function to safely acquire the tool (even if it changes)
-    local function getWeapon(character)
-        local tool = character:FindFirstChild("Weapon")
-        if not tool then
-            -- Wait for a child to be added; this may be a new tool
-            tool = character.ChildAdded:Wait()
-            -- Optionally check if the new child is the correct tool
-        end
-        return tool
-    end
-    
-    -- Function to find the nearest enemy in EnemyFolder
-    local function findNearestEnemy(humanoidRootPart)
-        local closest, dist = nil, math.huge
-        local enemyFolder = Workspace:FindFirstChild("EnemyFolder")
-        if enemyFolder then
-            for _, enemy in pairs(enemyFolder:GetChildren()) do
-                local enemyHumanoid = enemy:FindFirstChildOfClass("Humanoid")
-                local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
-                if enemyHumanoid and enemyRoot and enemyHumanoid.Health > 0 then
-                    local mag = (humanoidRootPart.Position - enemyRoot.Position).Magnitude
-                    if mag < dist then
-                        closest, dist = enemy, mag
-                    end
-                end
-            end
-        end
-        return closest
-    end
-    
-    -- Section 7: NPC Selection and Dungeon Initialization
-    -- Function to find the best NPC and fire the event
-    local function findBestNpcAndFireEvent()
-        -- Don't execute if we're already in a dungeon
-        if DungeonSystem.inDungeon then
-            DungeonSystem:Log("⚔️ Already in dungeon - skipping NPC selection", "ACTION")
-            return false
-        end
-    
-        local player = Players.LocalPlayer
-        -- Verify character exists
-        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-            warn("Character or HumanoidRootPart not found. Waiting...")
-            player.CharacterAdded:Wait()
-            wait(1) -- Give time for character to fully load
-            return false
-        end
-        
-        local playerPower = getPlayerPower()
-        if playerPower <= 0 then
-            warn("Invalid player power detected. Please make sure your UI has loaded properly.")
-            return false
-        end
-        
-        DungeonSystem:Log("📊 Your current power: " .. tostring(playerPower), "POWER")
-        
-        -- Determine the appropriate island for the player's power
-        local island, islandIndex = getIslandForPower(playerPower)
-        DungeonSystem:Log(string.format("🌴 Selected %s for power level: %s", island.name, tostring(playerPower)), "ISLAND")
-        
-        -- Teleport to the island
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            player.Character:SetPrimaryPartCFrame(island.location)
-            DungeonSystem:Log("✈️ Teleported to " .. island.name, "MOVEMENT")
-        else
-            warn("Cannot teleport: Character or HumanoidRootPart not available")
-            return false
-        end
-        
-        -- Wait for NPCs to load after teleport
-        wait(1.5)
-        
-        -- Scan and analyze NPCs on this island
-        local visibleNpcs = {}
-        local npcsFolder = Workspace:WaitForChild("NPCs")
-        
-        -- Loop through all NPCs in the workspace
-        for _, npc in pairs(npcsFolder:GetChildren()) do
-            if npc:IsA("Model") then
-                -- Try to find the power level text
-                local levelNeed = npc:FindFirstChild("LevelNeed", true)
-                if not levelNeed and npc:FindFirstChild("Talk") then
-                    local talkPart = npc:FindFirstChild("Talk")
-                    local gui = talkPart and talkPart:FindFirstChild("BillboardGui")
-                    if gui then
-                        local frame = gui:FindFirstChild("Frame")
-                        if frame then
-                            levelNeed = frame:FindFirstChild("LevelNeed")
-                        end
-                    end
-                end
-                
-                -- If we found a valid power indicator
-                if levelNeed and (levelNeed:IsA("TextLabel") or levelNeed:IsA("TextButton")) and levelNeed.Text then
-                    local power = parsePower(levelNeed.Text)
-                    if power > 0 then
-                        table.insert(visibleNpcs, {
-                            model = npc,
-                            name = npc.Name,
-                            power = power
-                        })
-                    end
-                end
-            end
-        end
-        
-        -- Sort NPCs by power (ascending)
-        table.sort(visibleNpcs, function(a, b)
-            return a.power < b.power
-        end)
-        
-        if #visibleNpcs == 0 then
-            DungeonSystem:Log("⚠️ No NPCs found in the current area. Please wait or try again.", "WARNING")
-            return false
-        end
-        
-        -- Map NPC IDs based on power ranking
-        local mappedNpcs = {}
-        local npcBaseId = island.npcBaseId
-        
-        -- If we found fewer NPCs than expected
-        local npcCount = math.min(#visibleNpcs, island.npcCount)
-        
-        -- Create mapping from lowest to highest power
-        for i = 1, npcCount do
-            local npcInfo = visibleNpcs[i]
-            local npcId = npcBaseId + (i-1)  -- Calculate ID based on position (101002, 101003, etc.)
-            
-            table.insert(mappedNpcs, {
-                model = npcInfo.model,
-                name = npcInfo.name,
-                power = npcInfo.power,
-                id = npcId
-            })
-            
-            DungeonSystem:Log(string.format("📊 Mapped NPC: %s (Power: %s, ID: %d)", 
-                npcInfo.name, tostring(npcInfo.power), npcId), "NPC")
-        end
-        
-        -- Find the strongest NPC the player can defeat based on power
-        local bestNpc = nil
-        for i = #mappedNpcs, 1, -1 do
-            if mappedNpcs[i].power <= playerPower then
-                bestNpc = mappedNpcs[i]
-                break
-            end
-        end
-        
-        if bestNpc then
-            DungeonSystem:Log(string.format("✅ Selected NPC: %s (Power: %s, ID: %d)", 
-                bestNpc.name, tostring(bestNpc.power), bestNpc.id), "NPC")
-            
-            -- Teleport to the NPC's HumanoidRootPart immediately after
-            local npcHumanoidRootPart = bestNpc.model:FindFirstChild("HumanoidRootPart")
-            if npcHumanoidRootPart then
-                player.Character:SetPrimaryPartCFrame(npcHumanoidRootPart.CFrame)
-                DungeonSystem:Log("✈️ Teleported to NPC: " .. bestNpc.name, "MOVEMENT")
-            else
-                warn("HumanoidRootPart not found for NPC: " .. bestNpc.name)
-                return false
-            end
-            
-            -- Wait before firing the event
-            wait(1)  -- Adjust this time as needed
-            
-            -- Fire the event once with the best NPC ID
-            local remoteEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Region"):WaitForChild("EnterRegion")
+end)
+
+-- Handle toggle to start dungeon
+startdungeon:OnChanged(function()
+    if startdungeon.Value then
+        while startdungeon.Value do
+        if selectedDungeonIndex and Dungeons[selectedDungeonIndex] then
+            local selectedDungeon = Dungeons[selectedDungeonIndex]
             local args = {
-                [1] = bestNpc.id
+                selectedDungeon.npcBaseId
             }
-            remoteEvent:FireServer(unpack(args))
-            DungeonSystem:Log(string.format("🔥 Fired remote event with NPC ID: %d", bestNpc.id), "REMOTE")
-            return true
-        else
-            DungeonSystem:Log("⛔ No suitable NPC found for your power level (" .. tostring(playerPower) .. ").", "WARNING")
-            if #mappedNpcs > 0 then
-                DungeonSystem:Log("The lowest power NPC available requires: " .. tostring(mappedNpcs[1].power) .. " power.", "INFO")
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Region"):WaitForChild("EnterRegion"):FireServer(unpack(args))
+            else
+                Fluent:Notify("No dungeon selected!", "Please Select a dungeon")
             end
-            return false
+            task.wait(10)
         end
     end
-    
-    -- Section 8: Character and Autofarm Management
-    -- Function to initialize and start the autofarm logic for a given character
-    local function startAutofarmForCharacter(character)
-        local HumanoidRootPart = character:WaitForChild("HumanoidRootPart")
-        local weapon = getWeapon(character)
-        local attackCooldown = false
-    
-        -- Disconnect any previous heartbeat connection before starting a new one
-        if heartbeatConnection then
-            heartbeatConnection:Disconnect()
-            heartbeatConnection = nil
-        end
-    
-        -- Initialize the DungeonSystem
-        DungeonSystem:Initialize()
-    
-        heartbeatConnection = RunService.Heartbeat:Connect(function()
-            if not autofarmEnabled then
-                return
-            end
-    
-            -- Let the DungeonSystem handle state detection
-            local stateChanged, stateType = DungeonSystem:Update()
-            
-            -- Process state changes
-            if stateChanged then
-                if stateType == "DungeonStart" then
-                    -- Reset targeting
-                    targetEnemy = nil
-                    -- Prevent redundant NPC selection during dungeon
-                    lastLevelCheckTime = tick() + levelCheckInterval
-                    
-                elseif stateType == "DungeonComplete" or stateType == "DungeonExit" then
-                    -- Handle completion
-                    DungeonSystem:ResetState()
-                    targetEnemy = nil
-                    
-                    -- Trigger new NPC finding after a cooldown
-                    task.delay(5, function()
-                        if autofarmEnabled then
-                            lastLevelCheckTime = 0  -- Force immediate NPC check
-                        end
-                    end)
-                    
-                elseif stateType == "StageTransition" then
-                    -- Optional: You can implement specific behavior for stage transitions
-                    -- For example, re-target enemies or prepare for boss
-                    if DungeonSystem:IsInBossArea() then
-                        DungeonSystem:Log("🎯 Boss detected - adjusting combat strategy", "COMBAT")
-                        -- Reset targeting to find the boss
-                        targetEnemy = nil
-                    end
-                end
-            end
-    
-            -- NPC finding logic - only if not in dungeon
-            local currentTime = tick()
-            if currentTime - lastLevelCheckTime >= levelCheckInterval and not DungeonSystem.inDungeon then
-                lastLevelCheckTime = currentTime
-                
-                task.spawn(function()
-                    findBestNpcAndFireEvent()
-                end)
-            end
-    
-            -- Reacquire the tool if it is missing or not parented to the character anymore
-            if not weapon or not weapon:IsDescendantOf(character) then
-                weapon = getWeapon(character)
-            end
-    
-            -- Find the nearest valid enemy if none exists or the current one is dead
-            if not targetEnemy or not targetEnemy:FindFirstChild("Humanoid") or targetEnemy.Humanoid.Health <= 0 then
-                targetEnemy = findNearestEnemy(HumanoidRootPart)
-            end
-    
-            if targetEnemy then
-                local enemyRoot = targetEnemy:FindFirstChild("HumanoidRootPart")
-                if enemyRoot then
-                    local followDistance = slidauto.Value
-                    -- Calculate a position behind the enemy based on its LookVector and desired distance
-                    local behindPosition = enemyRoot.Position - enemyRoot.CFrame.LookVector * followDistance
-                    local finalPos = Vector3.new(behindPosition.X, enemyRoot.Position.Y, behindPosition.Z)
-                    
-                    -- Teleport the character's HumanoidRootPart behind the enemy and face it
-                    HumanoidRootPart.CFrame = CFrame.new(finalPos, enemyRoot.Position)
-                    
-                    -- If not in cooldown, activate the weapon
-                    if not attackCooldown then
-                        if weapon and weapon.Activate then
-                            weapon:Activate()
-                        end
-                        attackCooldown = true
-                        task.delay(cooldownTime, function()
-                            attackCooldown = false
-                        end)
-                    end
-                end
-            end
-        end)
-    
-        -- Listen for character death so that the connection is cleaned up
-        local humanoid = character:WaitForChild("Humanoid")
-        humanoid.Died:Connect(function()
-            if heartbeatConnection then
-                heartbeatConnection:Disconnect()
-                heartbeatConnection = nil
-            end
-            targetEnemy = nil
-        end)
+end)
+
+
+
+
+
+
+
+
+
+
+
+
+
+local autodungeon = secauto1:AddToggle("autodungeon", {Title = "Autofarm Enemy", Default = false})
+
+local autoDungeonEnabled = false
+local heartbeatConnection = nil
+local characterAddedConnection = nil
+local targetEnemy = nil
+local cooldownTime = 0.15
+local attackCooldown = false
+
+-- Function to safely acquire the tool
+local function getWeapon(character)
+    if not character or not character.Parent then
+        return nil
     end
     
-    -- Section 9: Event Handlers and Initialization
-    -- Handle toggle state changes for autofarming
-    combinedAutofarm:OnChanged(function(enabled)
-        autofarmEnabled = enabled
-        
-        if not autofarmEnabled then
-            if heartbeatConnection then
-                heartbeatConnection:Disconnect()
-                heartbeatConnection = nil
-            end
-            -- Reset all state
-            DungeonSystem:Initialize()
-            targetEnemy = nil
-            return
-        end
-        
-        -- Initialize state variables for immediate execution
-        lastLevelCheckTime = 0
-        
-        -- If enabled, initialize for the current character
-        local character = Players.LocalPlayer.Character
-        if character then
-            startAutofarmForCharacter(character)
-        end
-    end)
-    
-    -- Listen for the LocalPlayer's character to be loaded/reloaded (e.g. after death)
-    Players.LocalPlayer.CharacterAdded:Connect(function(character)
-        if autofarmEnabled then
-            startAutofarmForCharacter(character)
-        end
-    end)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    local autodungeon = secauto1:AddToggle("autodungeon", {Title = "Autofarm Enemy", Default = false})
-    
-    local autoDungeonEnabled = false
-    local heartbeatConnection = nil
-    local targetEnemy = nil
-    local cooldownTime = 0.15
-    
-    -- Function to safely acquire the tool (even if it changes)
-    local function getWeapon(character)
-        local tool = character:FindFirstChild("Weapon")
-        if not tool then
-            -- Wait for a child to be added; this may be a new tool
-            tool = character.ChildAdded:Wait()
-            -- Optionally check if the new child is the correct tool (if you have criteria)
-        end
+    -- First try to find existing weapon
+    local tool = character:FindFirstChild("Weapon")
+    if tool and tool.Parent == character then
         return tool
     end
     
-    -- Function to initialize and start the autofarm logic for a given character
-    local function startAutofarmForCharacter(character)
-        local HumanoidRootPart = character:WaitForChild("HumanoidRootPart")
-        local weapon = getWeapon(character)
-        local attackCooldown = false
+    -- Check backpack as well
+    local player = Players.LocalPlayer
+    if player and player.Backpack then
+        tool = player.Backpack:FindFirstChild("Weapon")
+        if tool then
+            -- Equip the tool
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:EquipTool(tool)
+                return tool
+            end
+        end
+    end
     
-        local function findNearestEnemy()
-            local closest, dist = nil, math.huge
-            local enemyFolder = Workspace:FindFirstChild("EnemyFolder")
-            if enemyFolder then
-                for _, enemy in pairs(enemyFolder:GetChildren()) do
-                    local enemyHumanoid = enemy:FindFirstChildOfClass("Humanoid")
-                    local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
-                    if enemyHumanoid and enemyRoot and enemyHumanoid.Health > 0 then
-                        local mag = (HumanoidRootPart.Position - enemyRoot.Position).Magnitude
-                        if mag < dist then
-                            closest, dist = enemy, mag
-                        end
-                    end
+    -- Check for any tool in character
+    for _, child in pairs(character:GetChildren()) do
+        if child:IsA("Tool") then
+            return child
+        end
+    end
+    
+    return nil
+end
+
+-- Function to validate enemy
+local function isValidEnemy(enemy)
+    if not enemy or not enemy.Parent then
+        return false
+    end
+    
+    local humanoid = enemy:FindFirstChildOfClass("Humanoid")
+    local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
+    
+    return humanoid and enemyRoot and humanoid.Health > 0
+end
+
+-- Function to find nearest enemy
+local function findNearestEnemy(character)
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    
+    local HumanoidRootPart = character.HumanoidRootPart
+    local closest, dist = nil, math.huge
+    local enemyFolder = workspace:FindFirstChild("EnemyFolder")
+    
+    if enemyFolder then
+        for _, enemy in pairs(enemyFolder:GetChildren()) do
+            if isValidEnemy(enemy) then
+                local enemyRoot = enemy.HumanoidRootPart
+                local mag = (HumanoidRootPart.Position - enemyRoot.Position).Magnitude
+                if mag < dist then
+                    closest, dist = enemy, mag
                 end
             end
-            return closest
         end
+    end
     
-        -- Disconnect any previous heartbeat connection before starting a new one
+    return closest
+end
+
+-- Main autofarm function
+local function startAutofarm()
+    -- Clean up previous connection
+    if heartbeatConnection then
+        heartbeatConnection:Disconnect()
+        heartbeatConnection = nil
+    end
+    
+    -- Create new heartbeat connection for constant positioning
+    heartbeatConnection = RunService.Heartbeat:Connect(function()
+        if not autoDungeonEnabled then
+            return
+        end
+        
+        local success = pcall(function()
+            local player = Players.LocalPlayer
+            local character = player.Character
+            
+            -- Validate character
+            if not character or not character.Parent or not character:FindFirstChild("HumanoidRootPart") then
+                return
+            end
+            
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if not humanoid or humanoid.Health <= 0 then
+                return
+            end
+            
+            local HumanoidRootPart = character.HumanoidRootPart
+            local weapon = getWeapon(character)
+            
+            -- Validate or find new target
+            if not isValidEnemy(targetEnemy) then
+                targetEnemy = findNearestEnemy(character)
+            end
+            
+            if targetEnemy and isValidEnemy(targetEnemy) then
+                local enemyRoot = targetEnemy.HumanoidRootPart
+                local followDistance = slidauto.Value or 10
+                
+                -- Calculate position behind enemy
+                local behindPosition = enemyRoot.Position - enemyRoot.CFrame.LookVector * followDistance
+                local finalPos = Vector3.new(behindPosition.X, enemyRoot.Position.Y, behindPosition.Z)
+                
+                -- Constantly teleport behind enemy
+                HumanoidRootPart.CFrame = CFrame.new(finalPos, enemyRoot.Position)
+                
+                -- Attack if weapon available and not in cooldown
+                if weapon and weapon:FindFirstChild("Handle") and not attackCooldown then
+                    weapon:Activate()
+                    attackCooldown = true
+                    task.spawn(function()
+                        task.wait(cooldownTime)
+                        attackCooldown = false
+                    end)
+                end
+            else
+                -- No valid target, reset
+                targetEnemy = nil
+            end
+        end)
+        
+        if not success then
+            -- Error occurred, continue anyway
+        end
+    end)
+end
+
+-- Handle toggle state changes
+autodungeon:OnChanged(function(enabled)
+    autoDungeonEnabled = enabled
+    
+    if autoDungeonEnabled then
+        startAutofarm()
+    else
+        -- Clean up when disabled
         if heartbeatConnection then
             heartbeatConnection:Disconnect()
             heartbeatConnection = nil
         end
+        targetEnemy = nil
+        attackCooldown = false
+    end
+end)
+
+-- Handle character respawn
+if characterAddedConnection then
+    characterAddedConnection:Disconnect()
+end
+
+characterAddedConnection = Players.LocalPlayer.CharacterAdded:Connect(function(character)
+    if autoDungeonEnabled then
+        -- Wait a bit for character to fully load
+        task.wait(1)
+        startAutofarm()
+    end
+end)
+
+-- Start immediately if already enabled and character exists
+if autoDungeonEnabled and Players.LocalPlayer.Character then
+    startAutofarm()
+end
+
+-- Clean up when script stops
+local function cleanup()
+    autoDungeonEnabled = false
+    targetEnemy = nil
+    attackCooldown = false
     
-        heartbeatConnection = RunService.Heartbeat:Connect(function()
-            if not autoDungeonEnabled then
-                return
-            end
-    
-            -- Reacquire the tool if it is missing or not parented to the character anymore
-            if not weapon or not weapon:IsDescendantOf(character) then
-                weapon = getWeapon(character)
-            end
-    
-            -- Find the nearest valid enemy if none exists or the current one is dead
-            if not targetEnemy or not targetEnemy:FindFirstChild("Humanoid") or targetEnemy.Humanoid.Health <= 0 then
-                targetEnemy = findNearestEnemy()
-            end
-    
-            if targetEnemy then
-                local enemyRoot = targetEnemy:FindFirstChild("HumanoidRootPart")
-                if enemyRoot then
-                    local followDistance = slidauto.Value
-                    -- Calculate a position behind the enemy based on its LookVector and desired distance
-                    local behindPosition = enemyRoot.Position - enemyRoot.CFrame.LookVector * followDistance
-                    local finalPos = Vector3.new(behindPosition.X, enemyRoot.Position.Y, behindPosition.Z)
-                    
-                    -- Teleport the character's HumanoidRootPart behind the enemy and face it
-                    HumanoidRootPart.CFrame = CFrame.new(finalPos, enemyRoot.Position)
-                    
-                    -- If not in cooldown, activate the weapon
-                    if not attackCooldown then
-                        if weapon and weapon.Activate then
-                            weapon:Activate()
-                        end
-                        attackCooldown = true
-                        task.delay(cooldownTime, function()
-                            attackCooldown = false
-                        end)
-                    end
-                end
-            end
-        end)
-    
-        -- Listen for character death so that the connection is cleaned up
-        local humanoid = character:WaitForChild("Humanoid")
-        humanoid.Died:Connect(function()
-            if heartbeatConnection then
-                heartbeatConnection:Disconnect()
-                heartbeatConnection = nil
-            end
-            targetEnemy = nil
-        end)
+    if heartbeatConnection then
+        heartbeatConnection:Disconnect()
+        heartbeatConnection = nil
     end
     
-    -- Handle toggle state changes for autofarming
-    autodungeon:OnChanged(function(enabled)
-        autoDungeonEnabled = enabled
-        if not autoDungeonEnabled then
-            if heartbeatConnection then
-                heartbeatConnection:Disconnect()
-                heartbeatConnection = nil
-            end
-            return
-        end
-    
-        -- If enabled, initialize for the current character
-        local character = Players.LocalPlayer.Character
-        if character then
-            startAutofarmForCharacter(character)
-        end
-    end)
-    
-    -- Listen for the LocalPlayer's character to be loaded/reloaded (e.g. after death)
-    Players.LocalPlayer.CharacterAdded:Connect(function(character)
-        if autoDungeonEnabled then
-            startAutofarmForCharacter(character)
-        end
-    end)
+    if characterAddedConnection then
+        characterAddedConnection:Disconnect()
+        characterAddedConnection = nil
+    end
+end
+
+-- Set up cleanup on script termination
+if getgenv then
+    getgenv().AutofarmCleanup = cleanup
+end
     
     
 
@@ -1796,7 +2169,7 @@ local ISLANDS = {
                 local character = services.players.LocalPlayer.Character
                 if character and character:FindFirstChild("HumanoidRootPart") then
                     showNotification("Status Update", "Returning to original position...")
-                    movementSystem.tweenToPosition(initialPosition, 2)
+                    character.HumanoidRootPart.CFrame = CFrame.new(initialPosition)
                 end
             end
     
@@ -2682,7 +3055,7 @@ miscserver:AddButton({
     local secCredits = Tabs.Credits:AddSection("Credits")
 
     secCredits:AddParagraph({
-        Title = "Script made by wrdyz.94 on discord",
+        Title = "Script made by .syllabyte on discord",
         Content = ""
     })
 
@@ -2690,7 +3063,7 @@ miscserver:AddButton({
         Title = "Copy Discord Username",
         Description = "",
         Callback = function()
-            setclipboard("wrdyz.94")
+            setclipboard(".syllabyte")
             Fluent:Notify({
                 Title = "Discord Username Copied",
                 Content = "My discord username has been copied to clipboard",
@@ -3027,11 +3400,6 @@ Window:SelectTab(1)
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
-Fluent:Notify({
-    Title = "Interface",
-    Content = "The script has been loaded.",
-    Duration = 8
-})
 
 -- You can use the SaveManager:LoadAutoloadConfig() to load a config
 -- which has been marked to be one that auto loads!
